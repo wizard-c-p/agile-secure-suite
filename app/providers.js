@@ -4,41 +4,40 @@ import { createContext, useContext, useEffect, useState } from "react";
 const ThemeContext = createContext(null);
 
 export function Providers({ children }) {
-  // Varsayılan tema 'dark'. Sunucu ve İstemci uyumlu olsun diye.
-  const [theme, setTheme] = useState("dark");
+  const [theme, setTheme] = useState("light");
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
     setMounted(true);
-    const saved = localStorage.getItem("theme");
-    if (saved) {
-      setTheme(saved);
-      document.documentElement.classList.remove("light", "dark");
-      document.documentElement.classList.add(saved);
-    } else {
-      // İlk açılışta dark zorla
+    const saved = localStorage.getItem("theme") || "light";
+    setTheme(saved);
+    if (saved === "dark") {
       document.documentElement.classList.add("dark");
+    } else {
+      document.documentElement.classList.remove("dark");
     }
   }, []);
 
   const toggle = () => {
-    const newTheme = theme === "dark" ? "light" : "dark";
-    setTheme(newTheme);
-    localStorage.setItem("theme", newTheme);
+    const next = theme === "light" ? "dark" : "light";
+    setTheme(next);
+    localStorage.setItem("theme", next);
     
-    const root = document.documentElement;
-    root.classList.remove("light", "dark");
-    root.classList.add(newTheme);
+    if (next === "dark") {
+      document.documentElement.classList.add("dark");
+    } else {
+      document.documentElement.classList.remove("dark");
+    }
   };
 
-  // DÜZELTME: !mounted kontrolü kaldırıldı.
-  // Provider ARTIK HER ZAMAN render ediliyor.
-  // Hydration mismatch olmaması için children'ı olduğu gibi dönüyoruz.
-  
+  // Prevent hydration mismatch by not rendering children until mounted
+  if (!mounted) {
+    return null;
+  }
+
   return (
     <ThemeContext.Provider value={{ theme, toggle }}>
-      {/* Sayfa içeriği her zaman Provider içinde */}
-      {children} 
+      {children}
     </ThemeContext.Provider>
   );
 }
@@ -46,7 +45,7 @@ export function Providers({ children }) {
 export const useTheme = () => {
   const context = useContext(ThemeContext);
   if (!context) {
-    throw new Error("useTheme error: Provider missing in tree");
+    throw new Error("useTheme must be used within Providers component");
   }
   return context;
 };

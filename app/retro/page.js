@@ -1,149 +1,181 @@
 "use client";
 import { useState, useEffect } from "react";
-import { db } from "../../firebase"; 
+import { db } from "../firebase"; 
 import { useTheme } from "../providers";
-import { useRouter } from "next/navigation";
-import { collection, addDoc, onSnapshot, query, where, orderBy, doc, updateDoc, deleteDoc, serverTimestamp, getDocs, limit } from "firebase/firestore";
+import { useRouter, useSearchParams } from "next/navigation";
+import { 
+  collection, addDoc, onSnapshot, query, where, 
+  orderBy, doc, updateDoc, deleteDoc, serverTimestamp, increment 
+} from "firebase/firestore";
+
+// --- UI COMPONENTS ---
+const Toast = ({ msg }) => (
+  <div className="fixed bottom-6 right-6 bg-zinc-900 dark:bg-zinc-100 text-white dark:text-black px-6 py-4 rounded-2xl shadow-2xl animate-in slide-in-from-bottom-5 z-[100] flex items-center gap-3 font-bold">
+    <span>✅</span> {msg}
+  </div>
+);
+
+const Modal = ({ isOpen, onClose, title, children, colorClass = "text-zinc-900 dark:text-white" }) => {
+  if (!isOpen) return null;
+  return (
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/40 backdrop-blur-md animate-in fade-in">
+      <div className="bg-white dark:bg-zinc-900 w-full max-w-md p-8 rounded-[40px] shadow-2xl border border-zinc-200 dark:border-zinc-800 scale-100 animate-in zoom-in-95">
+        <h3 className={`text-2xl font-black mb-6 uppercase tracking-tighter ${colorClass}`}>{title}</h3>
+        {children}
+        <button onClick={onClose} className="absolute top-6 right-8 text-zinc-400 hover:text-zinc-600 text-xl">✕</button>
+      </div>
+    </div>
+  );
+};
 
 export default function Retro() {
   const { theme, toggle } = useTheme();
   const router = useRouter();
-  const [view, setView] = useState("lobby");
+  const searchParams = useSearchParams();
   const [rid, setRid] = useState("");
-  const [joinId, setJoinId] = useState("");
-  const [lst, setLst] = useState([]);
-  const [txt, setTxt] = useState("");
-  const [act, setAct] = useState(null);
-  const [eid, setEid] = useState(null);
-  const [etx, setEtx] = useState("");
+  const [items, setItems] = useState([]);
+  
+  // Modals & State
+  const [toast, setToast] = useState(null);
+  const [editModal, setEditModal] = useState({ open: false, id: "", text: "" });
+  const [addModal, setAddModal] = useState({ open: false, type: "", text: "" }); // YENİ: Ekleme Modalı
+  const [deleteId, setDeleteId] = useState(null);
 
   useEffect(() => {
-    const p = new URLSearchParams(window.location.search);
-    const r = p.get("room");
-    if(r) { setRid(r); setView("board"); }
-  }, []);
-
-  const createRoom = () => {
-    const id = Math.random().toString(36).substring(2, 10);
-    setRid(id); setView("board");
-    window.history.pushState({}, '', `?room=${id}`);
-  };
-
-  const joinRoom = (e) => {
-    e.preventDefault();
-    if(!joinId.trim()) return;
-    setRid(joinId.trim()); setView("board");
-    window.history.pushState({}, '', `?room=${joinId.trim()}`);
-  };
+    const r = searchParams.get("room");
+    if(r) setRid(r); else router.push('/');
+  }, [searchParams]);
 
   useEffect(() => {
-    if (view !== "board" || !rid) return;
+    if (!rid) return;
     const q = query(collection(db, "retros"), where("room", "==", rid), orderBy("timestamp", "asc"));
-    return onSnapshot(q, (s) => setLst(s.docs.map(d => ({ id: d.id, ...d.data() }))));
-  }, [rid, view]);
+    return onSnapshot(q, (s) => setItems(s.docs.map(d => ({ id: d.id, ...d.data() }))));
+  }, [rid]);
 
-  const add = async (e, ty) => {
-    e.preventDefault();
-    if (!txt.trim()) return;
-    await addDoc(collection(db, "retros"), { text: txt.trim(), type: ty, room: rid, timestamp: serverTimestamp(), votes: 0, dislikes: 0 });
-    setTxt(""); setAct(null);
+  const showToast = (msg) => {
+    setToast(msg);
+    setTimeout(() => setToast(null), 3000);
   };
 
-  const update = (id, data) => updateDoc(doc(db, "retros", id), data);
-  const del = (id) => { if(confirm("Delete?")) deleteDoc(doc(db, "retros", id)); };
+  const handleVote = async (id, type) => {
+    const field = type === 'like' ? 'likes' : 'dislikes';
+    await updateDoc(doc(db, "retros", id), { [field]: increment(1) });
+  };
 
-  const COLS = [
-    { k: "start", l: "START", color: "text-emerald-600 dark:text-emerald-400" },
-    { k: "stop", l: "STOP", color: "text-rose-600 dark:text-rose-400" },
-    { k: "continue", l: "CONTINUE", color: "text-blue-600 dark:text-blue-400" }
+  const COLUMNS = [
+    { id: 'start', label: 'START', bg: 'bg-emerald-50 dark:bg-emerald-950/30', border: 'border-emerald-100 dark:border-emerald-900', text: 'text-emerald-700 dark:text-emerald-400', btn: 'bg-emerald-100 dark:bg-emerald-900 text-emerald-800 dark:text-emerald-200' },
+    { id: 'stop', label: 'STOP', bg: 'bg-rose-50 dark:bg-rose-950/30', border: 'border-rose-100 dark:border-rose-900', text: 'text-rose-700 dark:text-rose-400', btn: 'bg-rose-100 dark:bg-rose-900 text-rose-800 dark:text-rose-200' },
+    { id: 'continue', label: 'CONTINUE', bg: 'bg-blue-50 dark:bg-blue-950/30', border: 'border-blue-100 dark:border-blue-900', text: 'text-blue-700 dark:text-blue-400', btn: 'bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200' }
   ];
 
-  if (view === "lobby") return (
-    <div className="min-h-screen flex flex-col items-center justify-center p-6 bg-gray-50 dark:bg-zinc-950 transition-colors duration-300">
-      <div className="w-full max-w-md bg-white dark:bg-zinc-900 p-10 rounded-[2.5rem] shadow-xl border border-gray-200 dark:border-zinc-800 space-y-8">
-        <h1 className="text-5xl font-black italic text-center text-blue-600 dark:text-blue-500">RETRO</h1>
-        <button onClick={createRoom} className="w-full py-4 bg-blue-600 text-white rounded-xl font-black shadow-lg">CREATE NEW ROOM</button>
-        <div className="text-center opacity-50 text-xs">OR</div>
-        <form onSubmit={joinRoom} className="flex gap-2">
-            <input value={joinId} onChange={e=>setJoinId(e.target.value)} placeholder="Enter Room ID" className="flex-1 p-4 bg-gray-50 dark:bg-black border rounded-xl outline-none"/>
-            <button className="px-6 font-bold border rounded-xl hover:bg-gray-100 dark:hover:bg-zinc-800">JOIN</button>
-        </form>
-        <div className="flex justify-center gap-4 pt-4">
-             <button onClick={() => router.push('/')} className="text-xs font-bold opacity-50 hover:opacity-100">← HOME</button>
-             <button onClick={toggle} className="text-xl">{theme === 'dark' ? '☀️' : '🌙'}</button>
-        </div>
-      </div>
-    </div>
-  );
-
   return (
-    <div className="min-h-screen flex flex-col font-sans bg-gray-50 dark:bg-zinc-950 transition-colors duration-300">
-      <header className="px-6 py-4 flex justify-between items-center bg-white dark:bg-zinc-900 border-b border-gray-200 dark:border-zinc-800 sticky top-0 z-50">
-        <div className="flex items-center gap-6">
-            <h2 className="font-black text-2xl text-blue-600 dark:text-blue-500 italic">RETRO</h2>
-            <nav className="hidden md:flex gap-4 text-xs font-bold text-gray-400">
-                <button onClick={() => router.push('/')} className="hover:text-blue-500">HOME</button>
-                <button onClick={() => router.push('/poker')} className="hover:text-purple-500">POKER</button>
-            </nav>
-        </div>
-        <div className="flex gap-3">
-             <span className="px-3 py-2 rounded-lg bg-gray-100 dark:bg-zinc-800 text-xs font-mono opacity-50">{rid}</span>
-             <button onClick={toggle} className="p-2 border rounded-full border-gray-200 dark:border-zinc-700">{theme==='dark'?'☀️':'🌙'}</button>
-             <button onClick={() => {navigator.clipboard.writeText(window.location.href); alert("Copied!")}} className="bg-blue-600 text-white px-4 py-2 rounded-xl text-xs font-black">SHARE</button>
+    <div className="h-screen flex flex-col font-sans bg-zinc-50 dark:bg-zinc-950 text-zinc-900 dark:text-white transition-colors duration-500">
+      {toast && <Toast msg={toast} />}
+
+      <header className="h-20 px-8 flex justify-between items-center bg-white/80 dark:bg-zinc-900/80 backdrop-blur-xl border-b border-zinc-200 dark:border-zinc-800 z-50">
+        <button onClick={()=>router.push('/')} className="font-bold text-sm text-zinc-500 hover:text-zinc-900 dark:hover:text-white transition flex items-center gap-2">
+          <span>←</span> Back
+        </button>
+        <div className="flex items-center gap-3">
+          <span className="text-xs font-mono px-3 py-1.5 bg-zinc-100 dark:bg-zinc-800 rounded-lg text-zinc-500">{rid}</span>
+          <button onClick={()=>{navigator.clipboard.writeText(window.location.href); showToast("Link copied to clipboard!")}} className="text-xs font-bold px-4 py-2 bg-zinc-900 dark:bg-zinc-100 text-white dark:text-black rounded-xl hover:scale-105 transition">Share Board</button>
+          <button onClick={toggle} className="p-2 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-full transition">{theme === 'dark' ? '☀️' : '🌙'}</button>
         </div>
       </header>
 
-      <main className="flex-1 p-6 overflow-x-auto">
-        <div className="grid md:grid-cols-3 gap-6 h-full min-w-[900px] md:min-w-0 mx-auto">
-          {COLS.map(c => (
-            <div key={c.k} className="flex flex-col h-full rounded-[2rem] bg-white dark:bg-zinc-900 border border-gray-200 dark:border-zinc-800 shadow-sm overflow-hidden">
-              <div className={`p-5 font-black text-xs tracking-widest border-b border-gray-100 dark:border-zinc-800 flex justify-between ${c.color}`}>
-                <span>{c.l}</span>
-                <span className="bg-gray-100 dark:bg-zinc-800 px-2 py-0.5 rounded text-[10px] text-gray-500">{lst.filter(x => x.type === c.k).length}</span>
-              </div>
-              <div className="flex-1 overflow-y-auto p-4 space-y-3 custom-scrollbar">
-                {lst.filter(x => x.type === c.k).map(i => (
-                  <div key={i.id} className="p-4 rounded-2xl bg-gray-50 dark:bg-zinc-950 border border-gray-200 dark:border-zinc-800 hover:border-blue-400 dark:hover:border-zinc-700 transition group">
-                    {eid === i.id ? (
-                        <div className="flex flex-col gap-2">
-                            <textarea value={etx} onChange={e=>setEtx(e.target.value)} autoFocus className="w-full bg-white dark:bg-black border p-2 rounded-lg text-sm" rows="3"/>
-                            <div className="flex justify-end gap-2">
-                                <button onClick={()=>setEid(null)} className="text-[10px] font-bold opacity-50">CANCEL</button>
-                                <button onClick={()=>{update(i.id, {text:etx}); setEid(null)}} className="text-[10px] font-bold text-blue-500">SAVE</button>
-                            </div>
-                        </div>
-                    ) : (
-                        <>
-                            <p className="text-sm text-slate-800 dark:text-zinc-300 whitespace-pre-wrap leading-relaxed">{i.text}</p>
-                            <div className="flex justify-between mt-3 pt-3 border-t border-gray-200 dark:border-zinc-800">
-                                <div className="flex gap-3">
-                                    <button onClick={()=>update(i.id,{votes:(i.votes||0)+1})} className="text-xs hover:scale-110 transition">👍 {i.votes}</button>
-                                    <button onClick={()=>update(i.id,{dislikes:(i.dislikes||0)+1})} className="text-xs hover:scale-110 transition">👎 {i.dislikes}</button>
-                                </div>
-                                <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition">
-                                    <button onClick={()=>{setEid(i.id); setEtx(i.text)}} className="text-[10px] font-bold text-blue-500">EDIT</button>
-                                    <button onClick={()=>del(i.id)} className="text-[10px] font-bold text-red-500">DEL</button>
-                                </div>
-                            </div>
-                        </>
-                    )}
+      <main className="flex-1 p-6 md:p-8 grid grid-cols-1 md:grid-cols-3 gap-6 overflow-hidden">
+        {COLUMNS.map(col => (
+          <div key={col.id} className={`flex flex-col rounded-[32px] overflow-hidden border ${col.border} ${col.bg} shadow-sm`}>
+             <div className="p-6 flex justify-between items-center">
+               <h3 className={`font-black tracking-widest text-sm ${col.text}`}>{col.label}</h3>
+               <span className={`text-[10px] font-bold px-2 py-1 rounded-full bg-white/50 dark:bg-black/20 ${col.text}`}>{items.filter(i=>i.type===col.id).length}</span>
+             </div>
+             
+             <div className="flex-1 overflow-y-auto p-4 space-y-3 custom-scrollbar">
+                {items.filter(i=>i.type===col.id).map(i => (
+                  <div key={i.id} className="p-5 bg-white dark:bg-zinc-900 rounded-2xl shadow-sm border border-zinc-100 dark:border-zinc-800 group hover:shadow-md transition-all">
+                    <p className="text-sm font-medium whitespace-pre-wrap leading-relaxed text-zinc-700 dark:text-zinc-300">{i.text}</p>
+                    <div className="flex justify-between items-center pt-4 mt-2 border-t border-zinc-50 dark:border-zinc-800">
+                      <div className="flex gap-3">
+                        <button onClick={()=>handleVote(i.id, 'like')} className="text-xs font-bold text-emerald-600 hover:scale-110 transition flex items-center gap-1 bg-emerald-50 dark:bg-emerald-900/20 px-2 py-1 rounded">👍 {i.likes||0}</button>
+                        <button onClick={()=>handleVote(i.id, 'dislike')} className="text-xs font-bold text-rose-600 hover:scale-110 transition flex items-center gap-1 bg-rose-50 dark:bg-rose-900/20 px-2 py-1 rounded">👎 {i.dislikes||0}</button>
+                      </div>
+                      <button onClick={()=>setEditModal({open: true, id: i.id, text: i.text})} className="opacity-0 group-hover:opacity-100 text-[10px] font-black uppercase text-zinc-400 hover:text-blue-500 transition">Edit</button>
+                    </div>
                   </div>
                 ))}
-              </div>
-              <div className="p-4 border-t border-gray-100 dark:border-zinc-800 bg-gray-50 dark:bg-zinc-950/50">
-                 {act === c.k ? (
-                    <form onSubmit={e=>add(e, c.k)}>
-                        <textarea value={txt} onChange={e=>setTxt(e.target.value)} autoFocus placeholder="..." className="w-full p-3 bg-white dark:bg-zinc-900 border border-gray-200 dark:border-zinc-700 rounded-xl text-sm outline-none" rows="2"/>
-                        <button className="w-full mt-2 bg-blue-600 text-white py-2 rounded-lg text-xs font-bold">ADD CARD</button>
-                    </form>
-                 ) : (
-                    <button onClick={()=>{setAct(c.k); setTxt("")}} className="w-full py-3 border-2 border-dashed border-gray-200 dark:border-zinc-800 rounded-xl text-xs font-black opacity-40 hover:opacity-100 hover:border-blue-400 transition">+ ADD</button>
-                 )}
-              </div>
-            </div>
-          ))}
-        </div>
+             </div>
+             
+             <div className="p-4">
+                <button 
+                  onClick={() => setAddModal({ open: true, type: col.id, text: "" })} // YENİ: Modal aç
+                  className={`w-full py-4 rounded-2xl font-black text-xs uppercase tracking-widest transition hover:brightness-110 active:scale-95 ${col.btn}`}
+                >
+                  + Add Item
+                </button>
+             </div>
+          </div>
+        ))}
       </main>
+
+      {/* --- MODALS --- */}
+
+      {/* 1. ADD MODAL */}
+      <Modal 
+        isOpen={addModal.open} 
+        onClose={() => setAddModal({ ...addModal, open: false })} 
+        title={`Add to ${addModal.type}`}
+        colorClass={COLUMNS.find(c => c.id === addModal.type)?.text}
+      >
+        <textarea 
+          autoFocus
+          value={addModal.text} 
+          onChange={e => setAddModal({ ...addModal, text: e.target.value })} 
+          placeholder="What's on your mind?" 
+          className="w-full p-4 h-32 bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-2xl outline-none resize-none focus:ring-2 ring-zinc-400 mb-6"
+        />
+        <button 
+          onClick={async () => {
+            if(addModal.text.trim()) {
+              await addDoc(collection(db, "retros"), {
+                text: addModal.text, 
+                type: addModal.type, 
+                room: rid, 
+                timestamp: serverTimestamp(), 
+                likes: 0, 
+                dislikes: 0
+              });
+              setAddModal({ open: false, type: "", text: "" });
+              showToast("Note added!");
+            }
+          }} 
+          className="w-full py-4 bg-zinc-900 dark:bg-white text-white dark:text-black rounded-2xl font-bold uppercase text-xs hover:scale-[1.02] transition"
+        >
+          Post Note
+        </button>
+      </Modal>
+
+      {/* 2. EDIT MODAL */}
+      <Modal isOpen={editModal.open} onClose={() => setEditModal({ ...editModal, open: false })} title="Edit Note">
+        <textarea 
+          value={editModal.text} 
+          onChange={e => setEditModal({ ...editModal, text: e.target.value })} 
+          className="w-full p-4 h-32 bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-2xl outline-none resize-none focus:ring-2 ring-blue-500 mb-6"
+        />
+        <div className="flex gap-3">
+          <button onClick={() => setDeleteId(editModal.id)} className="flex-1 py-4 border-2 border-red-100 dark:border-red-900 text-red-500 rounded-2xl font-bold uppercase text-xs hover:bg-red-50 dark:hover:bg-red-900/20">Delete</button>
+          <button onClick={async () => { await updateDoc(doc(db, "retros", editModal.id), { text: editModal.text }); setEditModal({ ...editModal, open: false }); showToast("Updated!"); }} className="flex-1 py-4 bg-blue-600 text-white rounded-2xl font-bold uppercase text-xs hover:bg-blue-700">Save</button>
+        </div>
+      </Modal>
+
+      {/* 3. DELETE CONFIRMATION */}
+      <Modal isOpen={!!deleteId} onClose={() => setDeleteId(null)} title="Are you sure?">
+        <p className="mb-8 text-zinc-500">This action cannot be undone.</p>
+        <div className="flex gap-3">
+          <button onClick={() => setDeleteId(null)} className="flex-1 py-4 bg-zinc-100 dark:bg-zinc-800 rounded-2xl font-bold text-xs uppercase">Cancel</button>
+          <button onClick={async () => { await deleteDoc(doc(db, "retros", deleteId)); setDeleteId(null); setEditModal({ ...editModal, open: false }); showToast("Deleted!"); }} className="flex-1 py-4 bg-red-500 text-white rounded-2xl font-bold text-xs uppercase hover:bg-red-600">Yes, Delete</button>
+        </div>
+      </Modal>
     </div>
   );
 }

@@ -9,14 +9,12 @@ export default function SecurityLayer() {
       return false;
     };
 
-    // 2. KLAVYE KISAYOLLARI ENGELLEME (F12, CTRL+SHIFT+I, CTRL+U vb.)
+    // 2. KLAVYE KISAYOLLARI ENGELLEME (F12, CTRL+SHIFT+I vb.)
     const handleKeys = (e) => {
       if (
         e.keyCode === 123 || // F12
-        (e.ctrlKey && e.shiftKey && e.keyCode === 73) || // Ctrl+Shift+I
-        (e.ctrlKey && e.shiftKey && e.keyCode === 74) || // Ctrl+Shift+J
-        (e.ctrlKey && e.keyCode === 85) || // Ctrl+U (Kaynak Görüntüle)
-        (e.ctrlKey && e.keyCode === 83) // Ctrl+S (Kaydet)
+        (e.ctrlKey && e.shiftKey && (e.keyCode === 73 || e.keyCode === 74 || e.keyCode === 67)) || // Ctrl+Shift+I/J/C
+        (e.ctrlKey && e.keyCode === 85) // Ctrl+U (Kaynak Görüntüle)
       ) {
         e.preventDefault();
         e.stopPropagation();
@@ -24,56 +22,32 @@ export default function SecurityLayer() {
       }
     };
 
-    // 3. DEBUGGER TUZAĞI (DevTools açılırsa tarayıcıyı kasar/durdurur)
-    const antiDebug = setInterval(() => {
-      (function () {
-        (function a() {
-          try {
-            (function b(i) {
-              if (("" + i / i).length !== 1 || i % 20 === 0) {
-                (function () {}.constructor("debugger")());
-              } else {
-                debugger;
-              }
-              b(++i);
-            })(0);
-          } catch (e) {
-            setTimeout(a, 5000);
-          }
-        })();
-      })();
-    }, 1000);
-
-    // 4. DEVTOOLS TESPİTİ VE EKRAN BLUR (Pencere boyutu değişimi taktiği)
-    const detectDevTools = () => {
-      const threshold = 160;
-      const widthThreshold = window.outerWidth - window.innerWidth > threshold;
-      const heightThreshold = window.outerHeight - window.innerHeight > threshold;
+    // 3. SOSYAL MÜHENDİSLİK UYARISI (Self-XSS Koruması)
+    // DevTools'u bir şekilde açmayı başaranlar için caydırıcı mesaj.
+    const consoleWarning = () => {
+      console.clear();
+      const styleTitle = "color: red; font-size: 60px; font-weight: bold; text-shadow: 2px 2px black;";
+      const styleBody = "color: white; background: red; font-size: 20px; padding: 10px;";
       
-      if (widthThreshold || heightThreshold) {
-        document.body.style.filter = "blur(20px) grayscale(100%)";
-        document.body.style.pointerEvents = "none"; // Tıklamayı engelle
-        document.body.innerHTML = "<div style='display:flex;justify-content:center;align-items:center;height:100vh;color:red;font-size:3rem;background:black;font-weight:bold'>SECURITY ALERT: DEVTOOLS DETECTED</div>";
-      } else {
-        // Normale dön (Opsiyonel, genelde ceza kalıcı olsun isteriz)
-        // document.body.style.filter = "none";
-      }
+      console.log("%cDUR!", styleTitle);
+      console.log("%cBu, tarayıcının geliştirici özelliğidir. Birisi size buraya bir şey kopyalayıp yapıştırmanızı söylerse, bu bir dolandırıcılıktır ve hesabınıza erişmelerini sağlar.", styleBody);
+      console.log("%cSTOP! This is a browser feature intended for developers. If someone told you to copy-paste something here, it is a scam.", "color: gray; font-size: 14px;");
     };
-    
-    const devToolsCheck = setInterval(detectDevTools, 1000);
 
     // Event Listener'ları Ekle
     document.addEventListener("contextmenu", handleContext);
     document.addEventListener("keydown", handleKeys);
+    
+    // Konsol uyarısını yüklenince bas
+    consoleWarning();
+    // Konsol temizlense bile tekrar basmak için aralık (Opsiyonel, sildim performansı etkilemesin)
 
-    // Temizlik (Component unmount olursa)
+    // Temizlik
     return () => {
       document.removeEventListener("contextmenu", handleContext);
       document.removeEventListener("keydown", handleKeys);
-      clearInterval(antiDebug);
-      clearInterval(devToolsCheck);
     };
   }, []);
 
-  return null; // Bu bileşen görünmez, sadece arkada çalışır
+  return null; // Görünür bir UI yok, arka planda çalışır.
 }
