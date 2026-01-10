@@ -8,16 +8,8 @@
 
 > A modern, real-time, AI-powered Agile collaboration platform featuring Planning Poker and Retrospective Boards. Built with a "Security First" mindset and Enterprise-grade architecture.
 
-**[🔗 Live Demo Link Here](https://your-netlify-app-link.app)**
+**[🔗 Live Demo Link Here](https://imaginative-sunburst-c1975f.netlify.app/)**
 
----
-
-## 📸 Screenshots
-
-| Planning Poker (AI Integration) | Retro Board (Parabol UI) |
-|:---:|:---:|
-| ![Poker Screen](https://via.placeholder.com/600x400?text=Upload+Your+Poker+Screenshot) | ![Retro Screen](https://via.placeholder.com/600x400?text=Upload+Your+Retro+Screenshot) |
-| *Real-time voting with AI participant* | *Start/Stop/Continue with atomic voting* |
 
 ---
 
