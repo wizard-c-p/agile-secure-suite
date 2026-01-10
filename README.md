@@ -12,14 +12,6 @@
 
 ---
 
-## 📸 Screenshots
-
-| Planning Poker (AI Integration) | Retro Board (Parabol UI) |
-|:---:|:---:|
-| ![Poker Screen](https://via.placeholder.com/600x400?text=Upload+Your+Poker+Screenshot) | ![Retro Screen](https://via.placeholder.com/600x400?text=Upload+Your+Retro+Screenshot) |
-| *Real-time voting with AI participant* | *Start/Stop/Continue with atomic voting* |
-
----
 
 ## ✨ Key Features
 
