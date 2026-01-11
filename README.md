@@ -25,7 +25,7 @@
 * **Voting Logic:** Fibonacci sequence, Auto-Reveal toggle, and Re-Vote capabilities.
 
 ### 🚀 Retrospective Board
-* **Modern UI/UX:** Inspired by Parabol.co using Glassmorphism, vibrant gradients, and smooth transitions.
+* **Modern UI/UX:**  Using Glassmorphism, vibrant gradients, and smooth transitions.
 * **Atomic Voting:** Separate `Likes` and `Dislikes` counters (no simple net score) to capture controversial topics.
 * **Interactive Columns:** Start, Stop, Continue zones with modal-based CRUD operations.
 * **One-Click Sharing:** Instant invite link copying with Toast notifications.
